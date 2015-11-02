@@ -17,6 +17,7 @@ async def get_log(request):
     global storage
     key = request.match_info.get("key")
     result = json.dumps(storage.get(key, {}))
+    print("GET", key, result)
     return web.Response(body=result.encode('utf-8'))
 
 # async def post_log(request):
@@ -32,6 +33,7 @@ async def post_log(request):
     global storage
     key = request.match_info.get("key")
     body = await request.read()
+    print("POST", key, body)
     storage[key] = json.loads(body.decode('utf-8'))
     json.dumps(storage.get(key, {}))
     result = json.dumps({"result": "ok", "id": key})

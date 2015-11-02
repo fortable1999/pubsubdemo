@@ -14,7 +14,9 @@ import kafka
 import sys
 import json
 
-class BaseJobMixin:
+from .log import BaseLoggingMixin
+
+class BaseJobMixin(BaseLoggingMixin):
     job_id = None
     job = None
 
@@ -54,11 +56,15 @@ class SSHJobMixin(BaseJobMixin):
                 port=port, 
                 username=username, 
                 password=password, 
-                known_hosts=None) as conn:
+                known_hosts=None, 
+                client_keys=[]
+                ) as conn:
             for cmd in cmd_list:
                 self.logger.info("$ %s" % cmd)
                 stdin, stdout, stderr = await conn.open_session(cmd)
                 output = await stdout.read()
+                output_error = await stderr.read()
+                print(output, output_error)
                 if async_callback:
                     await async_callback(output)
                 status = stdout.channel.get_exit_status()
@@ -81,3 +87,15 @@ class KafkaWriteJobMixin(BaseJobMixin):
     def do_kafka_write_job(self, *args, **kwargs):
         producer = kafka.SimpleProducer(kafka, async=True)
         producer.send_messages(b'my-topic', b'async message')
+
+if __name__ == '__main__':
+    class SSHTest(SSHJobMixin):
+        pass
+            
+    ssh = SSHTest()
+    asyncio.get_event_loop().run_until_complete(ssh.do_ssh_job(
+        "localhost",
+        "2222",
+        "vagrant",
+        "vagrant",
+        ["whoami"]))

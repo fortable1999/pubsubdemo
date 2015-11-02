@@ -3,7 +3,6 @@
 import asyncio
 import aioamqp
 import json
-import logging
 
 
 async def produce():

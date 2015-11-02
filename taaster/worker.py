@@ -1,7 +1,7 @@
 from abstract import *
-from lib.job import *
-from lib.logging import *
-from lib.queue import *
+from taaster.jobqueue import *
+from taaster.job import *
+from taaster.log import *
 import json
 import functools
 
@@ -29,6 +29,7 @@ class TaasWorker(
         """
         self.logger.info("> Job[%s] started" % job_id)
         job = await self.get_job(job_id)
+        print(job)
         ssh_host = job['tasks']['ssh_host']
         ssh_port = job['tasks']['ssh_port']
         ssh_username = job['tasks']['ssh_username']
