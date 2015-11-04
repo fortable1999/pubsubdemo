@@ -14,6 +14,7 @@ class TaasWorker(
         AbstractTester
         ):
     """docstring for TaasWorker"""
+    output_status = None
 
     async def process_output(self, job_id, data):
         self.logger.info("job[%s] > %s" % (job_id, data))
@@ -21,6 +22,25 @@ class TaasWorker(
         if not "output"  in job["tasks"]:
             job["tasks"]["output"] = []
         job["tasks"]["output"].append(data)
+        await self.put_job(job_id, job)
+
+    async def process_err_output(self, job_id, data):
+        self.output_status = "Fail"
+        self.logger.info("job[%s] > %s" % (job_id, data))
+        job = await self.get_job(job_id)
+        if not "output"  in job["tasks"]:
+            job["tasks"]["output"] = []
+        job["tasks"]["output"].append(data)
+        await self.put_job(job_id, job)
+
+    async def process_finish_output(self, job_id, data):
+        self.logger.info("job[%s] > %s" % (job_id, data))
+        job = await self.get_job(job_id)
+        if not "output"  in job["tasks"]:
+            job["tasks"]["output"] = []
+        job["tasks"]["output"].append(data)
+        output_status = self.output_status or "Success"
+        job["tasks"]["result"] = output_status
         await self.put_job(job_id, job)
 
     async def do_work(self, job_id):
@@ -42,7 +62,9 @@ class TaasWorker(
                 ssh_username,
                 ssh_password,
                 cmd_list, 
-                async_callback=functools.partial(self.process_output, job_id)
+                async_callback=functools.partial(self.process_output, job_id),
+                async_err_callback=functools.partial(self.process_err_output, job_id),
+                async_finish_callback=functools.partial(self.process_finish_output, job_id),
                 )
         self.logger.info("> Job[%s] Finished" % job_id)
 

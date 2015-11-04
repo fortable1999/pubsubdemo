@@ -14,7 +14,7 @@ import kafka
 import sys
 import json
 
-from .log import BaseLoggingMixin
+from taaster.log import BaseLoggingMixin
 
 class BaseJobMixin(BaseLoggingMixin):
     job_id = None
@@ -50,29 +50,43 @@ class SSHJobMixin(BaseJobMixin):
             username, 
             password, 
             cmd_list, 
-            async_callback=None, *args, **kwargs):
-        with await asyncssh.connect(
-                host, 
-                port=port, 
-                username=username, 
-                password=password, 
-                known_hosts=None, 
-                client_keys=[]
-                ) as conn:
-            for cmd in cmd_list:
-                self.logger.info("$ %s" % cmd)
-                stdin, stdout, stderr = await conn.open_session(cmd)
-                output = await stdout.read()
-                output_error = await stderr.read()
-                print(output, output_error)
-                if async_callback:
-                    await async_callback(output)
-                status = stdout.channel.get_exit_status()
-                if status:
-                    self.logger.info("Script finished with %d. Stop." % status)
-                    break
-                else:
-                    continue
+            async_callback=None, 
+            async_err_callback=None, 
+            async_finish_callback=None, 
+            *args, **kwargs):
+        try:
+            with await asyncssh.connect(
+                    host, 
+                    port=port, 
+                    username=username, 
+                    password=password, 
+                    known_hosts=None, 
+                    client_keys=[]
+                    ) as conn:
+                for cmd in cmd_list:
+                    self.logger.info("$ %s" % cmd)
+                    stdin, stdout, stderr = await conn.open_session(cmd)
+                    output = await stdout.read()
+                    output_error = await stderr.read()
+                    status = stdout.channel.get_exit_status()
+                    print("status:", status)
+                    if status:
+                        self.logger.info("Script finished with %d. Stop." % status)
+                        if async_err_callback:
+                            await async_err_callback(output_error)
+                        if async_finish_callback:
+                            await async_finish_callback("TaaS worker failed")
+                        return
+                    else:
+                        if async_callback:
+                            await async_callback(output)
+            if async_finish_callback:
+                await async_finish_callback("TaaS worker success")
+        except OSError as e:
+            if async_err_callback:
+                await async_err_callback("TaaS worker error: %s" % e)
+            if async_finish_callback:
+                await async_finish_callback("TaaS worker finished")
 
 
 class CurlJobMixin(BaseJobMixin):
@@ -89,8 +103,16 @@ class KafkaWriteJobMixin(BaseJobMixin):
         producer.send_messages(b'my-topic', b'async message')
 
 if __name__ == '__main__':
+    import functools
+
     class SSHTest(SSHJobMixin):
         pass
+
+    async def printitout(data):
+        
+        print(">>> Test callback")
+        print(data)
+        print("<<<")
             
     ssh = SSHTest()
     asyncio.get_event_loop().run_until_complete(ssh.do_ssh_job(
@@ -98,4 +120,8 @@ if __name__ == '__main__':
         "2222",
         "vagrant",
         "vagrant",
-        ["whoami"]))
+        ["whoami", "whoami", "whereis python"],
+        async_callback=functools.partial(printitout),
+        async_err_callback=functools.partial(printitout),
+        async_finish_callback=functools.partial(printitout),
+        ))
