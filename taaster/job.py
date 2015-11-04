@@ -72,6 +72,8 @@ class SSHJobMixin(BaseJobMixin):
                     print("status:", status)
                     if status:
                         self.logger.info("Script finished with %d. Stop." % status)
+                        if async_callback:
+                            await async_callback(output)
                         if async_err_callback:
                             await async_err_callback(output_error)
                         if async_finish_callback:
