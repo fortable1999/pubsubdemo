@@ -13,6 +13,7 @@ import asyncssh
 import kafka
 import sys
 import json
+import base64
 
 from taaster.log import BaseLoggingMixin
 
@@ -25,21 +26,20 @@ class CouchDBJobStorageMixin(BaseJobMixin):
     couchdb_host = "localhost"
     couchdb_port = 8081
 
-    def get_job_query(self, job_id):
-        return "http://%s:%d/log/%s" % (self.couchdb_host, self.couchdb_port, job_id)
+    def get_job_query(self):
+        return "http://%s:%d/v1/log" % (self.couchdb_host, self.couchdb_port)
 
     async def get_job(self, job_id):
-        response = await aiohttp.request("GET", self.get_job_query(job_id))
+        response = await aiohttp.request("GET", self.get_job_query()+"/"+job_id)
         chunk = await response.content.read()
         response.close()
         return json.loads(chunk.decode('utf-8'))
 
     async def put_job(self, job_id, doc):
-        body = json.dumps(doc)
-        response = await aiohttp.request("POST", self.get_job_query(job_id), data=body)
+        body = base64.b64encode(bytes(json.dumps(doc), 'utf-8'))
+        response = await aiohttp.request("POST", self.get_job_query(), data=body)
         chunk = await response.content.read()
         response.close()
-        print(chunk)
         return json.loads(chunk.decode('utf-8'))
 
 
@@ -69,7 +69,6 @@ class SSHJobMixin(BaseJobMixin):
                     output = await stdout.read()
                     output_error = await stderr.read()
                     status = stdout.channel.get_exit_status()
-                    print("status:", status)
                     if status:
                         self.logger.info("Script finished with %d. Stop." % status)
                         if async_callback:
